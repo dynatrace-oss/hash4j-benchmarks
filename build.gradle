@@ -1,0 +1,48 @@
+buildscript {
+	repositories {
+		mavenCentral()
+	}
+}
+
+plugins {
+	id 'com.diffplug.spotless' version '6.23.3'
+}
+
+static def readPythonLicense(licenseName) {
+	File licenseFile = new File('licenses/' + licenseName + '.txt')
+	def line
+	def s = '#\n'
+	licenseFile.withReader { reader ->
+		while ((line = reader.readLine()) != null) {
+			s += '#'
+			if(!line.isEmpty()) {
+				s += ' '
+				s += line
+			}
+			s += '\n'
+		}
+	}
+	s += '#'
+	return s
+}
+
+spotless {
+	def blackVersion = '23.12.1'
+	def greclipseVersion = '4.26' // version 4.26 seems to be the latest compatible with Java 11
+
+	ratchetFrom 'origin/main'
+	apply plugin: 'groovy'
+	groovyGradle {
+		target '*.gradle' // default target of groovyGradle
+		greclipse(greclipseVersion)
+	}
+	python {
+		target 'python/**/*.py'
+		black(blackVersion)
+		licenseHeader readPythonLicense('APACHE_2_0_DYNATRACE'), '(import|from)'
+	}
+}
+
+repositories {
+	mavenCentral()
+}

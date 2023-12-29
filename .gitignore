@@ -1,0 +1,3 @@
+/results/*/*.pdf
+/.gradle
+/build/tmp
