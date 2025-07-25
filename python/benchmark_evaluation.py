@@ -1,5 +1,5 @@
 #
-# Copyright 2022-2023 Dynatrace LLC
+# Copyright 2022-2025 Dynatrace LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -101,23 +101,34 @@ def read_data(benchmark_result_path, git_repo_path="."):
     )
 
 
+algorithm_colors = {
+    "HyperLogLog": "#e6194b",
+    "UltraLogLog": "#3cb44b",
+    "FarmHashNa": "#e6194b",
+    "FarmHashUo": "#3cb44b",
+    "Komihash4_3": "#ffe119",
+    "Komihash5_0": "#4363d8",
+    "Murmur3_128": "#f58231",
+    "Murmur3_32": "#911eb4",
+    "XXH3_128": "#46f0f0",
+    "XXH3_64": "#f032e6",
+    "WyhashFinal3": "#bcf60c",
+    "WyhashFinal4": "#fabebe",
+    "PolymurHash": "#008080",
+    "UnorderedHashTest": "#e6beff",
+    "Rapidhash3": "#9a6324",
+    # more colors for later use
+    # '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080'
+}
+
+
 def get_plot_linestyles(algorithm):
     styles = {}
-    algorithms_ordered = [
-        "FarmHashNa",
-        "Komihash4_3",
-        "Komihash5_0",
-        "Murmur3_128",
-        "Murmur3_32",
-        "XXH3",
-        "WyhashFinal3",
-        "WyhashFinal4",
-        "PolymurHash",
-        "UnorderedHashTest",
-    ]
-    for i, alg in enumerate(algorithms_ordered):
+
+    for alg in algorithm_colors:
         if alg in algorithm:
-            styles["color"] = f"C{i+1}"
+            styles["color"] = algorithm_colors[alg]
+            break
 
     linestyle_map = {
         "ZeroAllocationHashing": "dotted",
@@ -127,6 +138,7 @@ def get_plot_linestyles(algorithm):
     for alg, linestyle in linestyle_map.items():
         if alg in algorithm:
             styles["linestyle"] = linestyle
+            break
     return styles
 
 
@@ -145,18 +157,20 @@ def make_chart(df, output_path, name, scoreUnit, mode, show_confidence_interval)
         df_plot["primaryMetric.score"][algorithm].plot(
             ax=ax,
             marker="o",
-            **{
-                "yerr": [
-                    df_plot["primaryMetric.score"][algorithm]
-                    - df_plot["primaryMetric.scoreConfidence.lower"][algorithm],
-                    df_plot["primaryMetric.scoreConfidence.upper"][algorithm]
-                    - df_plot["primaryMetric.score"][algorithm],
-                ],
-                "linewidth": 0.5,
-                "capsize": 4,
-            }
-            if show_confidence_interval
-            else {},
+            **(
+                {
+                    "yerr": [
+                        df_plot["primaryMetric.score"][algorithm]
+                        - df_plot["primaryMetric.scoreConfidence.lower"][algorithm],
+                        df_plot["primaryMetric.scoreConfidence.upper"][algorithm]
+                        - df_plot["primaryMetric.score"][algorithm],
+                    ],
+                    "linewidth": 0.5,
+                    "capsize": 4,
+                }
+                if show_confidence_interval
+                else {}
+            ),
             **get_plot_linestyles(algorithm),
         )
 
