@@ -7,7 +7,7 @@ For better reproducibility, the benchmarks are executed on AWS bare-metal instan
 sudo sh -c "echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo"
 ```
 
-The results are obtained by checking out the corresponding hash4j revision and executing the following command in the base folder:
+The results are obtained by checking out the corresponding hash4j revision and executing the following command in the base folder of the hash4j project:
 ```
 ./gradlew jmh
 ```
