@@ -117,14 +117,16 @@ algorithm_colors = {
     "PolymurHash": "#008080",
     "UnorderedHashTest": "#e6beff",
     "Rapidhash3": "#9a6324",
+    "ChibiHash2": "#fffac8",
     # more colors for later use
-    # '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080'
+    # '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080'
 }
 
 
 def get_plot_linestyles(algorithm):
     styles = {}
 
+    #styles["color"] = 'black'
     for alg in algorithm_colors:
         if alg in algorithm:
             styles["color"] = algorithm_colors[alg]
@@ -179,12 +181,13 @@ def make_chart(df, output_path, name, scoreUnit, mode, show_confidence_interval)
     ax.set_xticklabels(xlabels)
 
     ax.set_ylabel(f"score ({mode}) in {scoreUnit}")
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.37), ncol=4, handlelength=8)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.5), ncol=4, handlelength=8)
 
-    fig.subplots_adjust(top=0.95, bottom=0.27, left=0.05, right=0.95)
+    fig.subplots_adjust(top=0.95, bottom=0.33, left=0.05, right=0.95)
 
     ax.set_title(name)
-    ax.set_ylim([0, ax.get_ylim()[1]])
+    #ax.set_ylim([0, ax.get_ylim()[1]])
+    ax.set_yscale('log')
     ax.xaxis.set_tick_params(rotation=90)
 
     fig.savefig(
