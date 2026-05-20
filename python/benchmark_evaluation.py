@@ -1,5 +1,5 @@
 #
-# Copyright 2022-2025 Dynatrace LLC
+# Copyright 2022-2026 Dynatrace LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
 import math
 import time
 from collections import defaultdict, namedtuple
-from os import listdir
-from os.path import basename, getsize, isfile, join
 from pathlib import Path
 
 import click
@@ -40,10 +38,10 @@ def get_commit_date(commit, git_repo):
     )
 
 
-def read_data_files_json_df(benchmark_result_path, benchmark_result_files, git_repo):
-    # read all files
-    files = [join(benchmark_result_path, f) for f in benchmark_result_files]
-    df = pd.concat({f: pd.read_json(f, orient="record") for f in files})
+def read_data_files_json_df(file_specs, git_repo):
+    # file_specs: list of (file_path, exec_date, revision)
+    path_to_meta = {fp: (ed, rv) for fp, ed, rv in file_specs}
+    df = pd.concat({fp: pd.read_json(fp, orient="record") for fp in path_to_meta})
 
     # add columns "filename" and "indexInFile"
     df.index.names = ["filename", "indexInFile"]
@@ -53,12 +51,8 @@ def read_data_files_json_df(benchmark_result_path, benchmark_result_files, git_r
     df[["benchmarkClassPath", "algorithm", "test"]] = df["benchmark"].str.rsplit(
         ".", n=2, expand=True
     )
-    df[["exec_date", "revision"]] = (
-        df["filename"]
-        .map(basename)
-        .str.rsplit(".", n=1, expand=True)[0]
-        .str.rsplit(" ", n=1, expand=True)
-    )
+    df["exec_date"] = df["filename"].map(lambda f: path_to_meta[f][0])
+    df["revision"] = df["filename"].map(lambda f: path_to_meta[f][1])
     df["commit_date"] = df["revision"].map(lambda x: get_commit_date(x, git_repo))
 
     # add params column if missing
@@ -85,19 +79,24 @@ def read_data_files_json_df(benchmark_result_path, benchmark_result_files, git_r
     return df
 
 
+def discover_benchmark_files(benchmark_result_path):
+    # Returns list of (file_path, exec_date, revision) for the nested layout
+    # <root>/.../<revision>/<exec_date>/jmh-results.json.
+    base = Path(benchmark_result_path)
+    out = []
+    for json_file in base.rglob("jmh-results.json"):
+        if not json_file.is_file() or json_file.stat().st_size == 0:
+            continue
+        exec_date = json_file.parent.name
+        revision = json_file.parent.parent.name
+        out.append((str(json_file), exec_date, revision))
+    return out
+
+
 def read_data(benchmark_result_path, git_repo_path="."):
     git_repo = git.Repo(git_repo_path) if git_repo_path else None
-
-    benchmark_result_files = [
-        f
-        for f in listdir(benchmark_result_path)
-        if isfile(join(benchmark_result_path, f))
-        and getsize(join(benchmark_result_path, f)) > 0
-        and f.endswith(".json")
-    ]
-
     return read_data_files_json_df(
-        benchmark_result_path, benchmark_result_files, git_repo
+        discover_benchmark_files(benchmark_result_path), git_repo
     )
 
 
@@ -126,7 +125,7 @@ algorithm_colors = {
 def get_plot_linestyles(algorithm):
     styles = {}
 
-    #styles["color"] = 'black'
+    # styles["color"] = 'black'
     for alg in algorithm_colors:
         if alg in algorithm:
             styles["color"] = algorithm_colors[alg]
@@ -186,8 +185,8 @@ def make_chart(df, output_path, name, scoreUnit, mode, show_confidence_interval)
     fig.subplots_adjust(top=0.95, bottom=0.33, left=0.05, right=0.95)
 
     ax.set_title(name)
-    #ax.set_ylim([0, ax.get_ylim()[1]])
-    ax.set_yscale('log')
+    # ax.set_ylim([0, ax.get_ylim()[1]])
+    ax.set_yscale("log")
     ax.xaxis.set_tick_params(rotation=90)
 
     fig.savefig(
