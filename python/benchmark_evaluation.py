@@ -29,18 +29,19 @@ import matplotlib.pyplot as plt
 
 
 def get_commit_date(commit, git_repo):
-    return (
-        time.strftime(
+    if not git_repo:
+        return None
+    try:
+        return time.strftime(
             "%Y-%m-%d %H:%M:%S", time.localtime(git_repo.commit(commit).committed_date)
         )
-        if git_repo
-        else None
-    )
+    except (ValueError, Exception):
+        return None
 
 
 def read_data_files_json_df(file_specs, git_repo):
-    # file_specs: list of (file_path, exec_date, revision)
-    path_to_meta = {fp: (ed, rv) for fp, ed, rv in file_specs}
+    # file_specs: list of (file_path, exec_date, revision, instance_type)
+    path_to_meta = {fp: (ed, rv, it) for fp, ed, rv, it in file_specs}
     df = pd.concat({fp: pd.read_json(fp, orient="record") for fp in path_to_meta})
 
     # add columns "filename" and "indexInFile"
@@ -53,6 +54,7 @@ def read_data_files_json_df(file_specs, git_repo):
     )
     df["exec_date"] = df["filename"].map(lambda f: path_to_meta[f][0])
     df["revision"] = df["filename"].map(lambda f: path_to_meta[f][1])
+    df["instance_type"] = df["filename"].map(lambda f: path_to_meta[f][2])
     df["commit_date"] = df["revision"].map(lambda x: get_commit_date(x, git_repo))
 
     # add params column if missing
@@ -80,8 +82,10 @@ def read_data_files_json_df(file_specs, git_repo):
 
 
 def discover_benchmark_files(benchmark_result_path):
-    # Returns list of (file_path, exec_date, revision) for the nested layout
-    # <root>/.../<revision>/<exec_date>/jmh-results.json.
+    # Returns list of (file_path, exec_date, revision, instance_type) for the
+    # nested layout <root>/<instance_type>/<revision>/<exec_date>/jmh-results.json.
+    # When <root> already points at an instance directory (so the relative path
+    # has only three parts), the instance type is taken from <root>'s name.
     base = Path(benchmark_result_path)
     out = []
     for json_file in base.rglob("jmh-results.json"):
@@ -89,7 +93,12 @@ def discover_benchmark_files(benchmark_result_path):
             continue
         exec_date = json_file.parent.name
         revision = json_file.parent.parent.name
-        out.append((str(json_file), exec_date, revision))
+        rel_parts = json_file.relative_to(base).parts
+        if len(rel_parts) >= 4:
+            instance_type = rel_parts[-4]
+        else:
+            instance_type = base.resolve().name
+        out.append((str(json_file), exec_date, revision, instance_type))
     return out
 
 
@@ -175,7 +184,13 @@ def make_chart(df, output_path, name, scoreUnit, mode, show_confidence_interval)
             **get_plot_linestyles(algorithm),
         )
 
-    xlabels = [",".join(i) for i in df_plot.index.to_flat_index()]
+    xlabels = [
+        ",".join(
+            "" if (isinstance(v, float) and math.isnan(v)) else str(v)
+            for v in i
+        )
+        for i in df_plot.index.to_flat_index()
+    ]
     ax.set_xticks(range(0, len(xlabels)))
     ax.set_xticklabels(xlabels)
 
@@ -201,22 +216,22 @@ def make_chart(df, output_path, name, scoreUnit, mode, show_confidence_interval)
 @click.command()
 @click.option(
     "--in-path",
-    default=".",
+    default="results",
     help="Input folder, should contain the JSON files.",
     show_default=True,
     type=click.Path(exists=True, file_okay=False, path_type=Path),
 )
 @click.option(
     "--out-path",
-    default=".",
-    help="Output folder, will contain the plots.",
+    default="figures",
+    help="Output folder; per-instance subfolders will be created beneath it.",
     show_default=True,
-    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    type=click.Path(exists=False, file_okay=False, path_type=Path),
 )
 @click.option(
     "--git-path",
-    default=".",
-    help="Set this to an empty string to disable fetching of commit date.",
+    default="../hash4j",
+    help="Path to the hash4j git repo (used to resolve commit dates). Set this to an empty string to disable fetching of commit date.",
     show_default=True,
     type=click.Path(exists=False, file_okay=False),
 )
@@ -231,17 +246,22 @@ def main(in_path, out_path, git_path, show_confidence_interval):
     # load all .json benchmark result files to a single pandas.DataFrame
     df = read_data(in_path, git_path)
 
-    # group by test and params (and more, but we expect this to be unique, otherwise the output file would be overwritten)
-    # create and save plot for each group
-    for (test, params, scoreUnit, mode), data in df.groupby(
-        ["test", "params", "primaryMetric.scoreUnit", "mode"]
-    ):
-        name = test + (
-            " (" + ";".join([f"{i[0]}={i[1]}" for i in sorted(params)]) + ")"
-            if len(params) > 0
-            else ""
-        )
-        make_chart(data, out_path, name, scoreUnit, mode, show_confidence_interval)
+    # group by instance type so each chart only shows data for one instance type;
+    # plots are written to <out_path>/<instance_type>/.
+    for instance_type, instance_df in df.groupby("instance_type"):
+        instance_out = out_path / str(instance_type)
+        instance_out.mkdir(parents=True, exist_ok=True)
+        for (test, params, scoreUnit, mode), data in instance_df.groupby(
+            ["test", "params", "primaryMetric.scoreUnit", "mode"]
+        ):
+            name = test + (
+                " (" + ";".join([f"{i[0]}={i[1]}" for i in sorted(params)]) + ")"
+                if len(params) > 0
+                else ""
+            )
+            make_chart(
+                data, instance_out, name, scoreUnit, mode, show_confidence_interval
+            )
 
 
 if __name__ == "__main__":

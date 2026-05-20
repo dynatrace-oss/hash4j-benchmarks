@@ -1,4 +1,15 @@
 /results/*/*.pdf
+/results/**/runner.log
+/results/**/jmh.log
 /.gradle
-/build/tmp
+/build
+/gradle-tasks/.gradle
+/gradle-tasks/build
 /.idea
+/*.yaml
+/jmh-access.json
+/lifecycle.json
+/trust-policy.json
+/.vscode
+/.venv
+/figures
