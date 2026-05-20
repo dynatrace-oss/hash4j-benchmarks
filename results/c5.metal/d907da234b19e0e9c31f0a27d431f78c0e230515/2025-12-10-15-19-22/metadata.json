@@ -1,0 +1,9 @@
+{
+  "schema_version": 0,
+  "hash4j": {
+    "git_revision": "d907da234b19e0e9c31f0a27d431f78c0e230515"
+  },
+  "aws": {
+    "instance_type": "c5.metal"
+  }
+}
