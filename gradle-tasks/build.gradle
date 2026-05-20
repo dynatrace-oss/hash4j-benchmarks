@@ -1,0 +1,33 @@
+plugins {
+	id 'java-gradle-plugin'
+}
+
+gradlePlugin {
+	plugins {
+		hash4jBenchmarks {
+			id = 'com.dynatrace.hash4j.benchmarks'
+			implementationClass = 'com.dynatrace.hash4j.benchmarks.BenchmarksPlugin'
+		}
+	}
+}
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation platform('software.amazon.awssdk:bom:2.30.0')
+	implementation 'software.amazon.awssdk:s3'
+	implementation 'software.amazon.awssdk:ec2'
+	implementation 'software.amazon.awssdk:sns'
+	implementation 'software.amazon.awssdk:sts'
+
+	implementation 'com.google.code.gson:gson:2.11.0'
+	implementation 'org.yaml:snakeyaml:2.3'
+}

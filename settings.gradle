@@ -1,1 +1,8 @@
+pluginManagement {
+	includeBuild 'gradle-tasks'
+	repositories {
+		gradlePluginPortal()
+	}
+}
+
 rootProject.name = 'hash4j-benchmarks'

@@ -6,6 +6,7 @@ buildscript {
 
 plugins {
 	id 'com.diffplug.spotless' version '6.23.3'
+	id 'com.dynatrace.hash4j.benchmarks'
 }
 
 static def readPythonLicense(licenseName) {
@@ -26,8 +27,64 @@ static def readPythonLicense(licenseName) {
 	return s
 }
 
+static def readJavaLicense(licenseName) {
+	File licenseFile = new File('licenses/' + licenseName + '.txt')
+	def line
+	def s = '/*\n'
+	licenseFile.withReader { reader ->
+		while ((line = reader.readLine()) != null) {
+			s += ' *'
+			if(!line.isEmpty()) {
+				s += ' '
+				s += line
+			}
+			s += '\n'
+		}
+	}
+	s += ' */'
+	return s
+}
+
+def os = org.gradle.internal.os.OperatingSystem.current()
+def venvDir = file("${rootDir}/.venv")
+def venvBlack = os.isWindows()
+		? new File(venvDir, 'Scripts/black.exe')
+		: new File(venvDir, 'bin/black')
+def venvPip = os.isWindows()
+		? new File(venvDir, 'Scripts/pip.exe')
+		: new File(venvDir, 'bin/pip')
+def venvPython = os.isWindows()
+		? new File(venvDir, 'Scripts/python.exe')
+		: new File(venvDir, 'bin/python')
+def requirementsFile = file("${rootDir}/requirements.txt")
+def requirementsMarker = new File(venvDir, '.requirements-installed')
+
+tasks.register('createVenvDir', Exec) {
+	description = 'Creates the local .venv directory.'
+	commandLine 'python', '-m', 'venv', venvDir.absolutePath
+	outputs.file(venvPip)
+	outputs.upToDateWhen { venvPip.exists() }
+}
+
+tasks.register('createVenv', Exec) {
+	description = 'Bootstraps the local .venv with all packages from requirements.txt.'
+	dependsOn 'createVenvDir'
+	commandLine venvPip.absolutePath, 'install', '--quiet', '-r', requirementsFile.absolutePath
+	inputs.file(requirementsFile)
+	outputs.file(requirementsMarker)
+	doLast {
+		requirementsMarker.text = requirementsFile.text
+	}
+}
+
+tasks.register('benchmarkEvaluation', Exec) {
+	group = 'verification'
+	description = 'Runs python/benchmark_evaluation.py inside the local .venv.'
+	dependsOn 'createVenv'
+	commandLine venvPython.absolutePath, file("${rootDir}/python/benchmark_evaluation.py").absolutePath
+}
+
 spotless {
-	def blackVersion = '25.1.0'
 	def greclipseVersion = '4.26' // version 4.26 seems to be the latest compatible with Java 11
 
 	ratchetFrom 'origin/main'
@@ -38,9 +95,17 @@ spotless {
 	}
 	python {
 		target 'python/**/*.py'
-		black(blackVersion)
+		black('25.1.0').pathToExe(venvBlack.absolutePath)
 		licenseHeader readPythonLicense('APACHE_2_0_DYNATRACE'), '(import|from)'
 	}
+	java {
+		target 'gradle-tasks/src/main/java/**/*.java'
+		licenseHeader readJavaLicense('APACHE_2_0_DYNATRACE'), 'package '
+	}
+}
+
+tasks.matching { it.name == 'spotlessPython' || it.name == 'spotlessPythonCheck' || it.name == 'spotlessPythonApply' }.configureEach {
+	dependsOn 'createVenv'
 }
 
 repositories {
